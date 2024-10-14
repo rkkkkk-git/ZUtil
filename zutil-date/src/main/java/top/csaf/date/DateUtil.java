@@ -27,7 +27,7 @@ import java.util.stream.Stream;
 public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
 
   /**
-   * 获取时间格式化构造器，并给不同时间级别赋默认值
+   * 获取时间格式化构造器，给解析字符串（parse）时的不同时间级别赋默认值，format 无效
    *
    * @param pattern       格式
    * @param fieldValueMap 时间类型和值
@@ -115,7 +115,7 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
     } else {
       dateTimeFormatter = formatterBuilder.toFormatter(DateFeat.getLocale());
     }
-    dateTimeFormatter.withResolverStyle(DateFeat.getResolverStyle());
+    dateTimeFormatter = dateTimeFormatter.withResolverStyle(DateFeat.getResolverStyle());
     if (zoneId != null) {
       dateTimeFormatter = dateTimeFormatter.withZone(DateFeat.get(zoneId));
     } else {
@@ -342,16 +342,12 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 格式化为指定时区和格式的字符串
    *
-   * @param temporal 时间对象
-   * @param zoneId   时区
-   * @param pattern  格式
+   * @param temporal          时间对象
+   * @param zoneId            时区
+   * @param dateTimeFormatter 格式
    * @return 指定时区和格式的字符串
    */
-  public static String format(@NonNull final Temporal temporal, final ZoneId zoneId, @NonNull final String pattern) {
-    if (StrUtil.isBlank(pattern)) {
-      throw new IllegalArgumentException("pattern must not be blank");
-    }
-    DateTimeFormatter dateTimeFormatter = getFormatter(pattern);
+  public static String format(@NonNull final Temporal temporal, final ZoneId zoneId, @NonNull final DateTimeFormatter dateTimeFormatter) {
     ZoneId zoneId1 = DateFeat.get(zoneId);
     if (zoneId1 != null) {
       if (temporal instanceof LocalDateTime || temporal instanceof LocalDate || temporal instanceof LocalTime) {
@@ -364,7 +360,7 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
         } else {
           localDateTime = ((LocalTime) temporal).atDate(LocalDate.now());
         }
-        return localDateTime.atZone(DateConst.SYSTEM_ZONE_ID).withZoneSameInstant(zoneId1).format(dateTimeFormatter);
+        return localDateTime.atZone(DateFeat.getZoneId()).withZoneSameInstant(zoneId1).format(dateTimeFormatter);
       } else if (temporal instanceof ZonedDateTime) {
         return ((ZonedDateTime) temporal).withZoneSameInstant(zoneId1).format(dateTimeFormatter);
       } else {
@@ -372,6 +368,22 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
       }
     }
     return dateTimeFormatter.format(temporal);
+  }
+
+  /**
+   * 格式化为指定时区和格式的字符串
+   *
+   * @param temporal 时间对象
+   * @param zoneId   时区
+   * @param pattern  格式
+   * @return 指定时区和格式的字符串
+   */
+  public static String format(@NonNull final Temporal temporal, final ZoneId zoneId, @NonNull final String pattern) {
+    if (StrUtil.isBlank(pattern)) {
+      throw new IllegalArgumentException("pattern must not be blank");
+    }
+    DateTimeFormatter dateTimeFormatter = getFormatter(pattern);
+    return format(temporal, zoneId, dateTimeFormatter);
   }
 
   /**
@@ -403,6 +415,17 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 格式化为指定格式的字符串
    *
+   * @param temporal          时间对象
+   * @param dateTimeFormatter 格式
+   * @return 指定格式的字符串
+   */
+  public static String format(@NonNull final Temporal temporal, @NonNull final DateTimeFormatter dateTimeFormatter) {
+    return format(temporal, null, dateTimeFormatter);
+  }
+
+  /**
+   * 格式化为指定格式的字符串
+   *
    * @param temporal 时间对象
    * @param pattern  格式
    * @return 指定格式的字符串
@@ -428,7 +451,19 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 格式化为指定时区和格式的字符串
    *
-   * @param date    时间对象
+   * @param date              时间对象，时区为 {@link DateFeat#getZoneId()}
+   * @param zoneId            时区
+   * @param dateTimeFormatter 格式
+   * @return 指定时区和格式的字符串
+   */
+  public static String format(@NonNull final Date date, final ZoneId zoneId, @NonNull final DateTimeFormatter dateTimeFormatter) {
+    return dateTimeFormatter.withZone(zoneId).format(date.toInstant().atZone(DateFeat.getZoneId()));
+  }
+
+  /**
+   * 格式化为指定时区和格式的字符串
+   *
+   * @param date    时间对象，时区为 {@link DateFeat#getZoneId()}
    * @param zoneId  时区
    * @param pattern 格式
    * @return 指定时区和格式的字符串
@@ -437,7 +472,7 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
     if (StrUtil.isBlank(pattern)) {
       throw new IllegalArgumentException("pattern must not be blank");
     }
-    return getFormatter(pattern, zoneId, true).format(date.toInstant());
+    return getFormatter(pattern, zoneId, true).format(date.toInstant().atZone(DateFeat.getZoneId()));
   }
 
   /**
@@ -449,6 +484,17 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
    */
   public static String format(@NonNull final Date date, @NonNull final ZoneId zoneId) {
     return format(date, zoneId, DateConst.DEFAULT_LOCAL_DATE_TIME_PATTERN);
+  }
+
+  /**
+   * 格式化为指定格式的字符串
+   *
+   * @param date              时间对象
+   * @param dateTimeFormatter 格式
+   * @return 指定格式的字符串
+   */
+  public static String format(@NonNull final Date date, @NonNull final DateTimeFormatter dateTimeFormatter) {
+    return format(date, null, dateTimeFormatter);
   }
 
   /**
@@ -475,67 +521,91 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 格式化为指定时区和格式的字符串
    *
-   * @param epochMilli 时间戳
+   * @param epochMilli        时间戳（毫秒）
+   * @param zoneId            时区
+   * @param dateTimeFormatter 格式
+   * @return 指定时区和格式的字符串
+   */
+  public static String format(@NonNull final Long epochMilli, final ZoneId zoneId, @NonNull final DateTimeFormatter dateTimeFormatter) {
+    return format(new Date(epochMilli), zoneId, dateTimeFormatter);
+  }
+
+  /**
+   * 格式化为指定时区和格式的字符串
+   *
+   * @param epochMilli 时间戳（毫秒）
    * @param zoneId     时区
    * @param pattern    格式
    * @return 指定时区和格式的字符串
    */
-  public static String format(final long epochMilli, final ZoneId zoneId, @NonNull final String pattern) {
+  public static String format(@NonNull final Long epochMilli, final ZoneId zoneId, @NonNull final String pattern) {
     return format(new Date(epochMilli), zoneId, pattern);
   }
 
   /**
    * 格式化为 DateConstant.DEFAULT_LOCAL_DATE_TIME_PATTERN 的字符串
    *
-   * @param epochMilli 时间戳
+   * @param epochMilli 时间戳（毫秒）
    * @param zoneId     时区
    * @return 指定时区的字符串
    */
-  public static String format(final long epochMilli, @NonNull final ZoneId zoneId) {
+  public static String format(@NonNull final Long epochMilli, @NonNull final ZoneId zoneId) {
     return format(epochMilli, zoneId, DateConst.DEFAULT_LOCAL_DATE_TIME_PATTERN);
   }
 
   /**
    * 格式化为指定时区和格式的字符串
    *
-   * @param epochMilli 时间戳
+   * @param epochMilli        时间戳（毫秒）
+   * @param dateTimeFormatter 格式
+   * @return 指定时区和格式的字符串
+   */
+  public static String format(@NonNull final Long epochMilli, @NonNull final DateTimeFormatter dateTimeFormatter) {
+    return format(epochMilli, null, dateTimeFormatter);
+  }
+
+  /**
+   * 格式化为指定时区和格式的字符串
+   *
+   * @param epochMilli 时间戳（毫秒）
    * @param pattern    格式
    * @return 指定时区和格式的字符串
    */
-  public static String format(final long epochMilli, @NonNull final String pattern) {
+  public static String format(@NonNull final Long epochMilli, @NonNull final String pattern) {
     return format(epochMilli, null, pattern);
   }
 
   /**
    * 格式化为 DateConstant.DEFAULT_LOCAL_DATE_TIME_PATTERN 的字符串
    *
-   * @param epochMilli 时间戳
+   * @param epochMilli 时间戳（毫秒）
    * @return DateConstant.DEFAULT_LOCAL_DATE_TIME_PATTERN 格式的字符串
    */
-  public static String format(final long epochMilli) {
+  public static String format(@NonNull final Long epochMilli) {
     return format(epochMilli, DateConst.DEFAULT_LOCAL_DATE_TIME_PATTERN);
   }
 
   /**
    * 格式化倒计时字符串
    *
-   * @param epochMilli 时间戳
+   * @param epochMilli 时间戳（毫秒）
    * @param pattern    格式
    * @return 指定格式的倒计时字符串
    */
-  public static String formatCountdown(long epochMilli, @NonNull String pattern) {
+  public static String formatCountdown(@NonNull final Long epochMilli, @NonNull String pattern) {
     if (epochMilli <= 0) {
       throw new IllegalArgumentException("epochMilli must be greater than 0");
     }
     if (StrUtil.isBlank(pattern)) {
       throw new IllegalArgumentException("pattern must not be blank");
     }
+    long epochMilli1 = epochMilli;
     String lowerCasePattern = pattern.toLowerCase();
 
     if (pattern.contains("W")) {
-      long week = epochMilli / DateDuration.WEEK_MILLIS;
+      long week = epochMilli1 / DateDuration.WEEK_MILLIS;
       if (week > 0) {
-        epochMilli -= week * DateDuration.WEEK_MILLIS;
+        epochMilli1 -= week * DateDuration.WEEK_MILLIS;
       }
 
       // 1 位且前后都不是 W：1
@@ -546,9 +616,9 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
       }
     }
     if (lowerCasePattern.contains("d")) {
-      long dayOfMonth = epochMilli / DateDuration.DAY_OF_MONTH_MILLIS;
+      long dayOfMonth = epochMilli1 / DateDuration.DAY_OF_MONTH_MILLIS;
       if (dayOfMonth > 0) {
-        epochMilli -= dayOfMonth * DateDuration.DAY_OF_MONTH_MILLIS;
+        epochMilli1 -= dayOfMonth * DateDuration.DAY_OF_MONTH_MILLIS;
       }
 
       pattern = DateRegExPattern.DAY_OF_MONTH.matcher(pattern).replaceAll(String.valueOf(dayOfMonth));
@@ -557,9 +627,9 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
       }
     }
     if (lowerCasePattern.contains("h") || lowerCasePattern.contains("k")) {
-      long hour = epochMilli / DateDuration.HOUR_MILLIS;
+      long hour = epochMilli1 / DateDuration.HOUR_MILLIS;
       if (hour > 0) {
-        epochMilli -= hour * DateDuration.HOUR_MILLIS;
+        epochMilli1 -= hour * DateDuration.HOUR_MILLIS;
       }
 
       if (pattern.contains("H")) {
@@ -591,9 +661,9 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
       }
     }
     if (pattern.contains("m")) {
-      long minute = epochMilli / DateDuration.MINUTE_MILLIS;
+      long minute = epochMilli1 / DateDuration.MINUTE_MILLIS;
       if (minute > 0) {
-        epochMilli -= minute * DateDuration.MINUTE_MILLIS;
+        epochMilli1 -= minute * DateDuration.MINUTE_MILLIS;
       }
 
       if (pattern.contains("m")) {
@@ -604,9 +674,9 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
       }
     }
     if (pattern.contains("s")) {
-      long second = epochMilli / DateDuration.SECOND_MILLIS;
+      long second = epochMilli1 / DateDuration.SECOND_MILLIS;
       if (second > 0) {
-        epochMilli -= second * DateDuration.SECOND_MILLIS;
+        epochMilli1 -= second * DateDuration.SECOND_MILLIS;
       }
 
       if (pattern.contains("s")) {
@@ -617,7 +687,7 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
       }
     }
     if (pattern.contains("S")) {
-      long millis = epochMilli / DateDuration.MILLIS_1000;
+      long millis = epochMilli1 / DateDuration.MILLIS_1000;
       if (pattern.contains("S")) {
         pattern = DateRegExPattern.FRACTION_OF_SECOND3.matcher(pattern).replaceAll(String.format("%03d", millis));
       }
@@ -628,7 +698,7 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 格式化倒计时字符串
    *
-   * @param epochMilli       时间戳
+   * @param epochMilli       时间戳（毫秒）
    * @param isIgnoreZero     是否忽略为 0 的时间级别
    * @param weekSuffix       周后缀
    * @param dayOfMonthSuffix 天后缀
@@ -714,7 +784,7 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
           return null;
         });
       } else {
-        zonedDateTime[0] = localDateTime.atZone(DateConst.SYSTEM_ZONE_ID);
+        zonedDateTime[0] = localDateTime.atZone(DateFeat.getZoneId());
       }
       return Date.from(zonedDateTime[0].toInstant());
     } else if (temporal instanceof LocalDate) {
@@ -762,7 +832,7 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
    * @return LocalDateTime 对象
    */
   public static LocalDateTime toLocalDateTime(@NonNull final Date date) {
-    return date.toInstant().atZone(DateConst.SYSTEM_ZONE_ID).toLocalDateTime();
+    return date.toInstant().atZone(DateFeat.getZoneId()).toLocalDateTime();
   }
 
   /**
@@ -772,7 +842,7 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
    * @return LocalDate 对象
    */
   public static LocalDate toLocalDate(@NonNull final Date date) {
-    return date.toInstant().atZone(DateConst.SYSTEM_ZONE_ID).toLocalDate();
+    return date.toInstant().atZone(DateFeat.getZoneId()).toLocalDate();
   }
 
   /**
@@ -782,7 +852,7 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
    * @return LocalTime 对象
    */
   public static LocalTime toLocalTime(@NonNull final Date date) {
-    return date.toInstant().atZone(DateConst.SYSTEM_ZONE_ID).toLocalTime();
+    return date.toInstant().atZone(DateFeat.getZoneId()).toLocalTime();
   }
 
   /**
@@ -801,9 +871,9 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
     } else if (LocalTime.class.equals(clazz)) {
       return (T) toLocalTime(date);
     } else if (ZonedDateTime.class.equals(clazz)) {
-      return (T) toLocalDateTime(date).atZone(DateConst.SYSTEM_ZONE_ID);
+      return (T) toLocalDateTime(date).atZone(DateFeat.getZoneId());
     } else if (OffsetDateTime.class.equals(clazz)) {
-      return (T) toLocalDateTime(date).atZone(DateConst.SYSTEM_ZONE_ID).toOffsetDateTime();
+      return (T) toLocalDateTime(date).atZone(DateFeat.getZoneId()).toOffsetDateTime();
     }
     return null;
   }
@@ -821,18 +891,18 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   // }
 
   public static long toEpochSecond(@NonNull final Date date) {
-    return date.toInstant().atZone(DateConst.SYSTEM_ZONE_ID).toEpochSecond();
+    return date.toInstant().atZone(DateFeat.getZoneId()).toEpochSecond();
   }
 
   /**
    * 解析为指定时区的 LocalDateTime 对象
    *
-   * @param epochMilli 时间戳
+   * @param epochMilli 时间戳（毫秒）
    * @param zoneId     时区
    * @return 指定时区的 LocalDateTime 对象
    */
-  public static LocalDateTime parseLocalDateTime(final long epochMilli, final ZoneId zoneId) {
-    ZonedDateTime zonedDateTime = Instant.ofEpochMilli(epochMilli).atZone(DateConst.SYSTEM_ZONE_ID);
+  public static LocalDateTime parseLocalDateTime(@NonNull final Long epochMilli, final ZoneId zoneId) {
+    ZonedDateTime zonedDateTime = Instant.ofEpochMilli(epochMilli).atZone(DateFeat.getZoneId());
     if (zoneId != null) {
       zonedDateTime = zonedDateTime.withZoneSameInstant(DateFeat.get(zoneId));
     }
@@ -842,10 +912,10 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 解析为 LocalDateTime 对象
    *
-   * @param epochMilli 时间戳
+   * @param epochMilli 时间戳（毫秒）
    * @return LocalDateTime 对象
    */
-  public static LocalDateTime parseLocalDateTime(final long epochMilli) {
+  public static LocalDateTime parseLocalDateTime(@NonNull final Long epochMilli) {
     return parseLocalDateTime(epochMilli, null);
   }
 
@@ -863,7 +933,13 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
     }
     for (String pattern : patterns) {
       source = convertByPattern(source, pattern);
-      ZonedDateTime zonedDateTime = LocalDateTime.parse(source, getFormatter(pattern)).atZone(DateConst.SYSTEM_ZONE_ID);
+      LocalDateTime localDateTime;
+      try {
+        localDateTime = LocalDateTime.parse(source, getFormatter(pattern));
+      } catch (DateTimeParseException e) {
+        continue;
+      }
+      ZonedDateTime zonedDateTime = localDateTime.atZone(DateFeat.getZoneId());
       if (zoneId != null) {
         zonedDateTime = zonedDateTime.withZoneSameInstant(DateFeat.get(zoneId));
       }
@@ -973,12 +1049,12 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 解析为指定时区的 LocalDate 对象
    *
-   * @param epochMilli 被解析的时间戳
+   * @param epochMilli 被解析的时间戳（毫秒）
    * @param zoneId     时区
    * @return 指定时区的 LocalDate 对象
    */
-  public static LocalDate parseLocalDate(final long epochMilli, final ZoneId zoneId) {
-    ZonedDateTime zonedDateTime = Instant.ofEpochMilli(epochMilli).atZone(DateConst.SYSTEM_ZONE_ID);
+  public static LocalDate parseLocalDate(@NonNull final Long epochMilli, final ZoneId zoneId) {
+    ZonedDateTime zonedDateTime = Instant.ofEpochMilli(epochMilli).atZone(DateFeat.getZoneId());
     if (zoneId != null) {
       zonedDateTime = zonedDateTime.withZoneSameInstant(DateFeat.get(zoneId));
     }
@@ -988,10 +1064,10 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 解析为 LocalDate 对象
    *
-   * @param epochMilli 时间戳
+   * @param epochMilli 时间戳（毫秒）
    * @return LocalDate 对象
    */
-  public static LocalDate parseLocalDate(final long epochMilli) {
+  public static LocalDate parseLocalDate(@NonNull final Long epochMilli) {
     return parseLocalDate(epochMilli, null);
   }
 
@@ -1011,9 +1087,14 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
     }
     for (String pattern : patterns) {
       source = convertByPattern(source, pattern);
-      LocalDate localDate = LocalDate.parse(source, getFormatter(pattern));
+      LocalDate localDate;
+      try {
+        localDate = LocalDate.parse(source, getFormatter(pattern));
+      } catch (DateTimeParseException e) {
+        continue;
+      }
       if (zoneId != null) {
-        return localDate.atTime(LocalTime.MIN).atZone(DateConst.SYSTEM_ZONE_ID).withZoneSameInstant(DateFeat.get(zoneId)).toLocalDate();
+        return localDate.atTime(LocalTime.MIN).atZone(DateFeat.getZoneId()).withZoneSameInstant(DateFeat.get(zoneId)).toLocalDate();
       }
       return localDate;
     }
@@ -1101,12 +1182,12 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 解析为指定时区的 LocalTime 对象
    *
-   * @param epochMilli 时间戳
+   * @param epochMilli 时间戳（毫秒）
    * @param zoneId     时区
    * @return 指定时区的 LocalTime 对象
    */
-  public static LocalTime parseLocalTime(final long epochMilli, final ZoneId zoneId) {
-    ZonedDateTime zonedDateTime = Instant.ofEpochMilli(epochMilli).atZone(DateConst.SYSTEM_ZONE_ID);
+  public static LocalTime parseLocalTime(@NonNull final Long epochMilli, final ZoneId zoneId) {
+    ZonedDateTime zonedDateTime = Instant.ofEpochMilli(epochMilli).atZone(DateFeat.getZoneId());
     if (zoneId != null) {
       zonedDateTime = zonedDateTime.withZoneSameInstant(DateFeat.get(zoneId));
     }
@@ -1116,10 +1197,10 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 解析为 LocalTime 对象
    *
-   * @param epochMilli 时间戳
+   * @param epochMilli 时间戳（毫秒）
    * @return LocalTime 对象
    */
-  public static LocalTime parseLocalTime(final long epochMilli) {
+  public static LocalTime parseLocalTime(@NonNull final Long epochMilli) {
     return parseLocalTime(epochMilli, null);
   }
 
@@ -1139,9 +1220,14 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
     }
     for (String pattern : patterns) {
       source = convertByPattern(source, pattern);
-      LocalTime localTime = LocalTime.parse(source, getFormatter(pattern));
+      LocalTime localTime;
+      try {
+        localTime = LocalTime.parse(source, getFormatter(pattern));
+      } catch (DateTimeParseException e) {
+        continue;
+      }
       if (zoneId != null) {
-        return localTime.atDate(LocalDate.now()).atZone(DateConst.SYSTEM_ZONE_ID).withZoneSameInstant(DateFeat.get(zoneId)).toLocalTime();
+        return localTime.atDate(LocalDate.now()).atZone(DateFeat.getZoneId()).withZoneSameInstant(DateFeat.get(zoneId)).toLocalTime();
       }
       return localTime;
     }
@@ -1207,14 +1293,14 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 解析为指定时区的 Date 对象
    *
-   * @param epochMilli 时间戳
+   * @param epochMilli 时间戳（毫秒）
    * @param zoneId     时区
    * @return 指定时区的 Date 对象
    */
-  public static Date parseDate(final long epochMilli, final ZoneId zoneId) {
+  public static Date parseDate(@NonNull final Long epochMilli, final ZoneId zoneId) {
     Date date = new Date(epochMilli);
     if (zoneId != null) {
-      date = Date.from(date.toInstant().atZone(DateConst.SYSTEM_ZONE_ID).withZoneSameInstant(DateFeat.get(zoneId)).toInstant());
+      date = Date.from(date.toInstant().atZone(DateFeat.getZoneId()).withZoneSameInstant(DateFeat.get(zoneId)).toInstant());
     }
     return date;
   }
@@ -1222,10 +1308,10 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 解析为 Date 对象
    *
-   * @param epochMilli 时间戳
+   * @param epochMilli 时间戳（毫秒）
    * @return Date 对象
    */
-  public static Date parseDate(final long epochMilli) {
+  public static Date parseDate(@NonNull final Long epochMilli) {
     return parseDate(epochMilli, null);
   }
 
@@ -1296,13 +1382,13 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 解析为指定时区的时间对象
    *
-   * @param epochMilli 时间戳
+   * @param epochMilli 时间戳（毫秒）
    * @param zoneId     时区
    * @param clazz      时间类
    * @param <T>        时间类
    * @return 指定时区的时间对象
    */
-  public static <T> T parse(final long epochMilli, final ZoneId zoneId, @NonNull final Class<T> clazz) {
+  public static <T> T parse(@NonNull final Long epochMilli, final ZoneId zoneId, @NonNull final Class<T> clazz) {
     if (LocalDateTime.class.equals(clazz)) {
       return (T) parseLocalDateTime(epochMilli, zoneId);
     } else if (LocalDate.class.equals(clazz)) {
@@ -1318,12 +1404,12 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 解析为时间对象
    *
-   * @param epochMilli 时间戳
+   * @param epochMilli 时间戳（毫秒）
    * @param clazz      时间类
    * @param <T>        时间类
    * @return 时间对象
    */
-  public static <T> T parse(final long epochMilli, @NonNull final Class<T> clazz) {
+  public static <T> T parse(@NonNull final Long epochMilli, @NonNull final Class<T> clazz) {
     return parse(epochMilli, null, clazz);
   }
 
@@ -1447,7 +1533,7 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   }
 
   /**
-   * 从系统时区转换到新时区
+   * 从 DateFeat 时区转换到新时区
    *
    * @param temporal  时间对象
    * @param newZoneId 新时区
@@ -1455,7 +1541,7 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
    * @return 转换时区后的时间对象
    */
   public static <T extends Temporal> T withZoneInstant(@NonNull final T temporal, @NonNull final ZoneId newZoneId) {
-    return withZoneInstant(temporal, DateConst.SYSTEM_ZONE_ID, newZoneId);
+    return withZoneInstant(temporal, DateFeat.getZoneId(), newZoneId);
   }
 
   /**
@@ -1467,7 +1553,7 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
    * @return 转换时区后的 Date 对象
    */
   public static Date withZoneInstant(@NonNull final Date date, @NonNull final ZoneId oldZoneId, final @NonNull ZoneId newZoneId) {
-    LocalDateTime localDateTime = withZoneInstant(LocalDateTime.ofInstant(date.toInstant(), DateConst.SYSTEM_ZONE_ID), oldZoneId, newZoneId);
+    LocalDateTime localDateTime = withZoneInstant(LocalDateTime.ofInstant(date.toInstant(), DateFeat.getZoneId()), oldZoneId, newZoneId);
     if (localDateTime == null) {
       return null;
     }
@@ -1475,14 +1561,14 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   }
 
   /**
-   * 从系统时区转换到新时区
+   * 从 DateFeat 时区转换到新时区
    *
    * @param date      Date 对象
    * @param newZoneId 新时区
    * @return 转换时区后的 Date 对象
    */
   public static Date withZoneInstant(@NonNull final Date date, @NonNull final ZoneId newZoneId) {
-    return withZoneInstant(date, DateConst.SYSTEM_ZONE_ID, newZoneId);
+    return withZoneInstant(date, DateFeat.getZoneId(), newZoneId);
   }
 
   /**
@@ -1501,6 +1587,16 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
    */
   public static String now() {
     return DateFormat.YYYY_MM_DD_HH_MM_SS.format(new Date());
+  }
+
+  /**
+   * 获取指定格式的当前时间字符串
+   *
+   * @param dateTimeFormatter 格式
+   * @return 指定格式的当前时间字符串
+   */
+  public static String now(@NonNull final DateTimeFormatter dateTimeFormatter) {
+    return dateTimeFormatter.format(LocalDateTime.now());
   }
 
   /**
@@ -1526,12 +1622,23 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 获取指定时区和格式的当前时间字符串
    *
+   * @param zoneId            时区
+   * @param dateTimeFormatter 格式
+   * @return 指定时区和格式的当前时间字符串
+   */
+  public static String now(@NonNull final ZoneId zoneId, @NonNull final DateTimeFormatter dateTimeFormatter) {
+    return dateTimeFormatter.format(ZonedDateTime.now(DateFeat.get(zoneId)));
+  }
+
+  /**
+   * 获取指定时区和格式的当前时间字符串
+   *
    * @param zoneId  时区
    * @param pattern 格式
    * @return 指定时区和格式的当前时间字符串
    */
   public static String now(@NonNull final ZoneId zoneId, @NonNull final String pattern) {
-    return DateTimeFormatter.ofPattern(pattern).format(ZonedDateTime.now(DateFeat.get(zoneId)));
+    return now(zoneId, DateTimeFormatter.ofPattern(pattern));
   }
 
   /**
@@ -1594,6 +1701,54 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   }
 
   /**
+   * 指定多个事件级别的最小时间
+   *
+   * @param temporal          时间对象
+   * @param dateTimeFormatter 返回值格式
+   * @param temporalFields    多个最小时间的级别
+   * @return 时间字符串
+   */
+  public static String minStr(@NonNull final Temporal temporal, @NonNull final DateTimeFormatter dateTimeFormatter, @NonNull final TemporalField... temporalFields) {
+    Temporal temporal1 = min(temporal, temporalFields);
+    if (temporal1 == null) {
+      return null;
+    }
+    return format(temporal1, dateTimeFormatter);
+  }
+
+  /**
+   * 指定多个事件级别的最小时间
+   *
+   * @param temporal       时间对象
+   * @param pattern        返回值格式
+   * @param temporalFields 多个最小时间的级别
+   * @return 时间字符串
+   */
+  public static String minStr(@NonNull final Temporal temporal, @NonNull final String pattern, @NonNull final TemporalField... temporalFields) {
+    Temporal temporal1 = min(temporal, temporalFields);
+    if (temporal1 == null) {
+      return null;
+    }
+    return format(temporal1, pattern);
+  }
+
+  /**
+   * 指定多个时间级别的最小时间
+   *
+   * @param temporal       时间对象
+   * @param temporalFields 多个最大时间的级别
+   * @return 时间字符串
+   */
+  public static String minStr(@NonNull final Temporal temporal, @NonNull final TemporalField... temporalFields) {
+    Temporal temporal1 = min(temporal, temporalFields);
+    if (temporal1 == null) {
+      return null;
+    }
+    return format(temporal1);
+  }
+
+
+  /**
    * 指定多个时间级别的最大时间
    *
    * @param temporal       时间对象
@@ -1609,6 +1764,53 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   }
 
   /**
+   * 指定多个时间级别的最大时间
+   *
+   * @param temporal          时间对象
+   * @param dateTimeFormatter 返回值格式
+   * @param temporalFields    多个最大时间的级别
+   * @return 时间字符串
+   */
+  public static String maxStr(@NonNull final Temporal temporal, @NonNull final DateTimeFormatter dateTimeFormatter, @NonNull final TemporalField... temporalFields) {
+    Temporal temporal1 = max(temporal, temporalFields);
+    if (temporal1 == null) {
+      return null;
+    }
+    return format(temporal1, dateTimeFormatter);
+  }
+
+  /**
+   * 指定多个时间级别的最大时间
+   *
+   * @param temporal       时间对象
+   * @param pattern        返回值格式
+   * @param temporalFields 多个最大时间的级别
+   * @return 时间字符串
+   */
+  public static String maxStr(@NonNull final Temporal temporal, @NonNull final String pattern, @NonNull final TemporalField... temporalFields) {
+    Temporal temporal1 = max(temporal, temporalFields);
+    if (temporal1 == null) {
+      return null;
+    }
+    return format(temporal1, pattern);
+  }
+
+  /**
+   * 指定多个时间级别的最大时间
+   *
+   * @param temporal       时间对象
+   * @param temporalFields 多个最大时间的级别
+   * @return 时间字符串
+   */
+  public static String maxStr(@NonNull final Temporal temporal, @NonNull final TemporalField... temporalFields) {
+    Temporal temporal1 = max(temporal, temporalFields);
+    if (temporal1 == null) {
+      return null;
+    }
+    return format(temporal1);
+  }
+
+  /**
    * 获取指定时区和加减天的今天开始时间
    *
    * @param zoneId            时区
@@ -1621,7 +1823,7 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
       localDateTime = plusOrMinus(localDateTime, addOrSubtractDays, ChronoUnit.DAYS);
     }
     if (zoneId != null) {
-      return localDateTime.atZone(DateConst.SYSTEM_ZONE_ID).withZoneSameInstant(DateFeat.get(zoneId)).toLocalDateTime();
+      return localDateTime.atZone(DateFeat.getZoneId()).withZoneSameInstant(DateFeat.get(zoneId)).toLocalDateTime();
     }
     return localDateTime;
   }
@@ -1659,6 +1861,18 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
    * 获取指定时区、格式和加减天的今天开始时间字符串
    *
    * @param zoneId            时区
+   * @param dateTimeFormatter 格式
+   * @param addOrSubtractDays 加减天
+   * @return 时间字符串
+   */
+  public static String todayMinTimeStr(final ZoneId zoneId, @NonNull final DateTimeFormatter dateTimeFormatter, final Long addOrSubtractDays) {
+    return format(todayMinTime(zoneId, addOrSubtractDays), dateTimeFormatter);
+  }
+
+  /**
+   * 获取指定时区、格式和加减天的今天开始时间字符串
+   *
+   * @param zoneId            时区
    * @param pattern           格式
    * @param addOrSubtractDays 加减天
    * @return 时间字符串
@@ -1670,12 +1884,33 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 获取指定时区和格式的今天开始时间字符串
    *
+   * @param zoneId            时区
+   * @param dateTimeFormatter 格式
+   * @return 时间字符串
+   */
+  public static String todayMinTimeStr(@NonNull final ZoneId zoneId, @NonNull final DateTimeFormatter dateTimeFormatter) {
+    return todayMinTimeStr(zoneId, dateTimeFormatter, null);
+  }
+
+  /**
+   * 获取指定时区和格式的今天开始时间字符串
+   *
    * @param zoneId  时区
    * @param pattern 格式
    * @return 时间字符串
    */
   public static String todayMinTimeStr(@NonNull final ZoneId zoneId, @NonNull final String pattern) {
     return todayMinTimeStr(zoneId, pattern, null);
+  }
+
+  /**
+   * 获取指定格式的今天开始时间字符串
+   *
+   * @param dateTimeFormatter 格式
+   * @return 时间字符串
+   */
+  public static String todayMinTimeStr(@NonNull final DateTimeFormatter dateTimeFormatter) {
+    return todayMinTimeStr(null, dateTimeFormatter, null);
   }
 
   /**
@@ -1710,7 +1945,7 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
       localDateTime = plusOrMinus(localDateTime, addOrSubtractDays, ChronoUnit.DAYS);
     }
     if (zoneId != null) {
-      return localDateTime.atZone(DateConst.SYSTEM_ZONE_ID).withZoneSameInstant(DateFeat.get(zoneId)).toLocalDateTime();
+      return localDateTime.atZone(DateFeat.getZoneId()).withZoneSameInstant(DateFeat.get(zoneId)).toLocalDateTime();
     }
     return localDateTime;
   }
@@ -1748,6 +1983,18 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
    * 获取指定时区、格式和加减天的今天结束时间字符串
    *
    * @param zoneId            时区
+   * @param dateTimeFormatter 格式
+   * @param addOrSubtractDays 加减天
+   * @return 时间字符串
+   */
+  public static String todayMaxTimeStr(final ZoneId zoneId, @NonNull final DateTimeFormatter dateTimeFormatter, final Long addOrSubtractDays) {
+    return format(todayMaxTime(zoneId, addOrSubtractDays), dateTimeFormatter);
+  }
+
+  /**
+   * 获取指定时区、格式和加减天的今天结束时间字符串
+   *
+   * @param zoneId            时区
    * @param pattern           格式
    * @param addOrSubtractDays 加减天
    * @return 时间字符串
@@ -1759,12 +2006,33 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 获取指定时区和格式的今天结束时间字符串
    *
+   * @param zoneId            时区
+   * @param dateTimeFormatter 格式
+   * @return 时间字符串
+   */
+  public static String todayMaxTimeStr(@NonNull final ZoneId zoneId, @NonNull final DateTimeFormatter dateTimeFormatter) {
+    return todayMaxTimeStr(zoneId, dateTimeFormatter, null);
+  }
+
+  /**
+   * 获取指定时区和格式的今天结束时间字符串
+   *
    * @param zoneId  时区
    * @param pattern 格式
    * @return 时间字符串
    */
   public static String todayMaxTimeStr(@NonNull final ZoneId zoneId, @NonNull final String pattern) {
     return todayMaxTimeStr(zoneId, pattern, null);
+  }
+
+  /**
+   * 获取指定格式的今天结束时间字符串
+   *
+   * @param dateTimeFormatter 格式
+   * @return 时间字符串
+   */
+  public static String todayMaxTimeStr(@NonNull final DateTimeFormatter dateTimeFormatter) {
+    return todayMaxTimeStr(null, dateTimeFormatter, null);
   }
 
   /**
@@ -1809,6 +2077,20 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 加减指定时间类型数量的时间
    *
+   * @param temporal          被加减的时间对象
+   * @param augendOrMinuend   加减数量
+   * @param dateTimeFormatter 格式
+   * @param chronoUnits       多个时间类型
+   * @param <T>               时间类
+   * @return 加减后的时间对象
+   */
+  public static <T extends Temporal> String plusOrMinus(@NonNull T temporal, final long augendOrMinuend, @NonNull DateTimeFormatter dateTimeFormatter, @NonNull final ChronoUnit... chronoUnits) {
+    return format(plusOrMinus(temporal, augendOrMinuend, chronoUnits), dateTimeFormatter);
+  }
+
+  /**
+   * 加减指定时间类型数量的时间
+   *
    * @param temporal        被加减的时间对象
    * @param augendOrMinuend 加减数量
    * @param pattern         格式
@@ -1830,6 +2112,19 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
    */
   public static <T extends Temporal> T plusOrMinus(@NonNull final T temporal, final long augendOrMinuend) {
     return plusOrMinus(temporal, augendOrMinuend, ChronoUnit.MILLIS);
+  }
+
+  /**
+   * 加减指定数量的时间，时间周期为毫秒
+   *
+   * @param temporal          被加减的时间对象
+   * @param augendOrMinuend   加减数量
+   * @param dateTimeFormatter 格式
+   * @param <T>               时间类
+   * @return 加减后的时间对象
+   */
+  public static <T extends Temporal> String plusOrMinus(@NonNull final T temporal, final long augendOrMinuend, @NonNull DateTimeFormatter dateTimeFormatter) {
+    return format(plusOrMinus(temporal, augendOrMinuend, ChronoUnit.MILLIS), dateTimeFormatter);
   }
 
   /**
@@ -1904,6 +2199,55 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   public static long between(@NonNull final Date startInclusive, @NonNull final Date endExclusive, @NonNull final ChronoUnit chronoUnit) {
     return toChronoUnit(startInclusive.getTime() - endExclusive.getTime(), chronoUnit);
   }
+
+  /**
+   * 时间差
+   *
+   * @param startInclusive 开始时间
+   * @param endExclusive   结束时间
+   * @param patterns       开始时间或结束时间的格式
+   * @return 时间量
+   */
+  public static Duration between(@NonNull final String startInclusive, @NonNull final String endExclusive, @NonNull final String... patterns) {
+    return between(parseLocalDateTime(startInclusive, patterns), parseLocalDateTime(endExclusive, patterns));
+  }
+
+  /**
+   * 时间差
+   *
+   * @param startInclusive 开始时间
+   * @param endExclusive   结束时间
+   * @param chronoUnit     时间周期
+   * @param patterns       开始时间或结束时间的格式
+   * @return 指定时间周期的时间差
+   */
+  public static long between(@NonNull final String startInclusive, @NonNull final String endExclusive, @NonNull final ChronoUnit chronoUnit, @NonNull final String... patterns) {
+    return between(parseLocalDateTime(startInclusive, patterns), parseLocalDateTime(endExclusive, patterns), chronoUnit);
+  }
+
+  /**
+   * 时间差
+   *
+   * @param startInclusive 开始时间
+   * @param endExclusive   结束时间
+   * @return 时间量
+   */
+  public static Duration between(@NonNull final String startInclusive, @NonNull final String endExclusive) {
+    return between(parseLocalDateTime(startInclusive), parseLocalDateTime(endExclusive));
+  }
+
+  /**
+   * 时间差
+   *
+   * @param startInclusive 开始时间
+   * @param endExclusive   结束时间
+   * @param chronoUnit     时间周期
+   * @return 指定时间周期的时间差
+   */
+  public static long between(@NonNull final String startInclusive, @NonNull final String endExclusive, @NonNull final ChronoUnit chronoUnit) {
+    return between(parseLocalDateTime(startInclusive), parseLocalDateTime(endExclusive), chronoUnit);
+  }
+
 
   /**
    * 格式化时间差
@@ -2308,6 +2652,23 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
   /**
    * 获取日期范围内的所有日期
    *
+   * @param startTime         开始时间
+   * @param endTime           结束时间
+   * @param dateTimeFormatter 结果集元素格式
+   * @return 日期范围内的所有日期
+   */
+  public static List<String> getByRange(@NonNull final LocalDateTime startTime, @NonNull final LocalDateTime endTime, @NonNull final DateTimeFormatter dateTimeFormatter) {
+    List<String> result = new ArrayList<>();
+    long distance = ChronoUnit.DAYS.between(startTime, endTime);
+    if (distance >= 1) {
+      Stream.iterate(startTime, day -> day.plusDays(1)).limit(distance + 1).forEach(f -> result.add(format(f, dateTimeFormatter)));
+    }
+    return result;
+  }
+
+  /**
+   * 获取日期范围内的所有日期
+   *
    * @param startTime 开始时间
    * @param endTime   结束时间
    * @param pattern   结果集元素格式
@@ -2321,6 +2682,42 @@ public class DateUtil extends org.apache.commons.lang3.time.DateUtils {
     long distance = ChronoUnit.DAYS.between(startTime, endTime);
     if (distance >= 1) {
       Stream.iterate(startTime, day -> day.plusDays(1)).limit(distance + 1).forEach(f -> result.add(format(f, pattern)));
+    }
+    return result;
+  }
+
+  /**
+   * 获取日期范围内的所有指定星期，包含开始日期和结束日期
+   *
+   * @param startTime         开始时间
+   * @param endTime           结束时间
+   * @param weeks             周几，逗号或者无分隔，1 代表周一
+   * @param dateTimeFormatter 结果集元素的格式
+   * @return 所有指定星期的天集合
+   */
+  public static List<String> getByRangeAndWeeks(@NonNull final LocalDateTime startTime, @NonNull final LocalDateTime endTime, @NonNull final String weeks, @NonNull final DateTimeFormatter dateTimeFormatter) {
+    if (StrUtil.isBlank(dateTimeFormatter)) {
+      throw new IllegalArgumentException("pattern must not be blank");
+    }
+    List<String> result = new ArrayList<>();
+    // 设置一周的开始为周一
+    TemporalField field = WeekFields.of(DayOfWeek.of(1), 1).dayOfWeek();
+    LocalDateTime dayByWeek;
+    for (String week : convertWeeks(weeks)) {
+      // 根据开始时间找到所在周对应星期的天
+      dayByWeek = startTime.with(field, Long.parseLong(week));
+      // 如果所在周对应星期的天 < 开始时间
+      if (dayByWeek.isBefore(startTime)) {
+        // 所在周对应星期的天 += 1 周
+        dayByWeek = dayByWeek.plusWeeks(1);
+      }
+      // 循环：所在周对应星期的天 < 结束时间 或 所在周对应星期的天 == 结束时间
+      while (dayByWeek.isBefore(endTime) || dayByWeek.isEqual(endTime)) {
+        // 此天添加到结果集合中
+        result.add(format(dayByWeek, dateTimeFormatter));
+        // 所在周对应星期的天 += 1 周
+        dayByWeek = dayByWeek.plusWeeks(1);
+      }
     }
     return result;
   }
